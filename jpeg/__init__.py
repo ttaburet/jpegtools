@@ -1,6 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy.signal
 import functools
 from scipy.fftpack import dct, idct
 
@@ -71,16 +69,15 @@ class JPEG():
         self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
                               np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
                               np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
-        # if(rounded):
-        #     self.arr = self.arr.astype(np.uint8)
-    
+
     @fluent
     def YCbCr2RGB(self, rounded = True):
         self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
                               np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
                               np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
-        # if(rounded):
-        #     self.arr = self.arr.astype(np.uint8)
+    @fluent
+    def SelectColorChannel(self, index_channel):
+        self.arr = self.arr[:, :, index_channel]
 
     @fluent
     def DCT(self):
@@ -101,16 +98,10 @@ class JPEG():
     def Quantize(self, Q, rounded = True):
         self.arr = np.stack([np.multiply(self.arr[:,:,:,:, i], 1.0/Q[i]) for i in range(self.arr.shape[-1])], axis = -1)
 
-        # if(rounded):
-        #     self.arr = np.round(self.arr).astype(int)
-    
     @fluent
     def Dequantize(self, Q, rounded = True):
         self.arr = np.stack([np.multiply(self.arr[:,:,:,:, i], Q[i]) for i in range(self.arr.shape[-1])], axis = -1)
-    
-        # if(rounded):
-        #     self.arr = self.arr.astype(np.int)
-    
+
     @fluent
     def Z_Ordering(self):
         ravel = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 64))
