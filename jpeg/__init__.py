@@ -22,7 +22,13 @@ def fluent(func):
 class JPEG():
     
     def __init__(self, arr):
-        self.arr = arr
+        try:
+            c = arr.shape[2]
+        except IndexError:
+            c = 1
+        finally:
+            temp = arr.copy()
+            self.arr = arr.copy().reshape(temp.shape[0], temp.shape[1], c)
     
     def _dct2d(self, arr):
         """
@@ -40,7 +46,7 @@ class JPEG():
             DCT-2D
         """
 
-        return dct(dct(arr, norm='ortho', axis=2), norm='ortho', axis=3)
+        return dct(dct(arr-128, norm='ortho', axis=2), norm='ortho', axis=3)
 
     def _idct2d(self, arr):
         """
@@ -59,97 +65,86 @@ class JPEG():
         """
 
         return idct(idct(arr, norm='ortho', axis=2), norm='ortho', axis=3) + 128
-
-    def _blockwise2D(self, arr, block_size, f, shape = 'same'):
-        
-        h, w = arr.shape[:2]
-    
-        if(shape == 'vect'):
-            res = np.zeros((h*w))
-            area_block = block_size[0]*block_size[1]
-            n_block_h, n_block_w = h//block_size[0], w//block_size[1]
-            for i in range(n_block_h):
-                for j in range(n_block_w):
-                    res[area_block*i*(n_block_w)+area_block*j:area_block*i*n_block_w+area_block*(j+1)] = \
-                        f(arr[i*block_size[0]:(i+1)*block_size[0], j*block_size[1]:(j+1)*block_size[1]]).flatten()
-        else:
-            res = np.zeros((h, w))
-
-            for i in range(h//block_size[0]):
-                for j in range(w//block_size[1]):
-                    res[i*block_size[0]:(i+1)*block_size[0], j*block_size[1]:(j+1)*block_size[1]] = \
-                        f(arr[i*block_size[0]:(i+1)*block_size[0], j*block_size[1]:(j+1)*block_size[1]])
-
-        return res
     
     @fluent
     def RGB2YCbCr(self, rounded = True):
         self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
                               np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
                               np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
-        if(rounded):
-            self.arr = self.arr.astype(np.uint8)
+        # if(rounded):
+        #     self.arr = self.arr.astype(np.uint8)
     
     @fluent
     def YCbCr2RGB(self, rounded = True):
         self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
                               np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
                               np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
-        if(rounded):
-            self.arr = self.arr.astype(np.uint8)
+        # if(rounded):
+        #     self.arr = self.arr.astype(np.uint8)
 
     @fluent
-    def DCT(self, rounded = True):
+    def DCT(self):
         self.arr = np.stack([self._dct2d(self.arr[:,:,:,:, i]) for i in range(self.arr.shape[-1])], axis = -1)
-                
-        if(rounded):
-            self.arr = self.arr.astype(np.int)
     
     @fluent
-    def IDCT(self, rounded = True):
+    def IDCT(self):
         self.arr = np.stack([self._idct2d(self.arr[:,:,:,:, i]) for i in range(self.arr.shape[-1])], axis = -1)
-
-        if(rounded):
-            self.arr = self.arr.astype(np.int)
     
+    @fluent
+    def Round(self, func = None):
+        if(func == None):
+            self.arr = np.round(self.arr).astype(int)
+        else:
+            self.arr = func(self.arr).astype(int)
+
     @fluent
     def Quantize(self, Q, rounded = True):
         self.arr = np.stack([np.multiply(self.arr[:,:,:,:, i], 1.0/Q[i]) for i in range(self.arr.shape[-1])], axis = -1)
 
-        if(rounded):
-            self.arr = self.arr.astype(np.int)
+        # if(rounded):
+        #     self.arr = np.round(self.arr).astype(int)
     
     @fluent
     def Dequantize(self, Q, rounded = True):
         self.arr = np.stack([np.multiply(self.arr[:,:,:,:, i], Q[i]) for i in range(self.arr.shape[-1])], axis = -1)
     
-        if(rounded):
-            self.arr = self.arr.astype(np.int)
+        # if(rounded):
+        #     self.arr = self.arr.astype(np.int)
     
     @fluent
     def Z_Ordering(self):
-        if(self.arr.shape[-1] == 3):
-            self.arr = np.stack([self._blockwise2D(self.arr[:, :, i], (8, 8), lambda arr : np.dot(arr.flatten(), M_P), 'vect') for i in range(3)])
-        else:
-            self.arr = self._blockwise2D(self.arr, (8, 8), lambda arr : np.dot(arr.flatten(), M_P), 'vect')
-    
+        ravel = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 64))
+        ravelBack = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 8, 8))
+        self.arr = np.stack([ ravelBack(np.dot(ravel(self.arr[:,:,:,:, i]), M_P)) for i in range(self.arr.shape[-1])], axis = -1)
+                
     @fluent
     def N_Ordering(self):
-        if(self.arr.shape[-1] == 3):
-            self.arr = np.dstack([self._blockwise2D(self.arr[:, :, i], (8, 8), lambda arr : np.dot(arr.flatten(), M_P.T), 'vect') for i in range(3)])
-        else:
-            self.arr = self._blockwise2D(self.arr, (8, 8), lambda arr : np.dot(arr.flatten(), M_P.T), 'vect')
+        ravel = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 64))
+        ravelBack = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 8, 8))
+        self.arr = np.stack([ ravelBack(np.dot(ravel(self.arr[:,:,:,:, i]), M_P.T)) for i in range(self.arr.shape[-1])], axis = -1)    
     
     @fluent
     def toBlocksView(self):
-        h, w = self.arr.shape[:2]
+        h, w, c = self.arr.shape[:3]
+        shape = (h//8, w//8, 8, 8)
 
-        self.arr = np.stack([np.lib.stride_tricks.as_strided(self.arr[:-1],\
-                                                            shape=(h//8, w//8, 8, 8),\
-                                                            strides=self.arr[:-1].itemsize*np.array([w*8 , 8, w, 1])) for i in range(self.arr.shape[-1])], axis = -1)
+        strided = np.zeros(list((h//8, w//8, 8, 8))+[c], dtype=self.arr.dtype)
+        for i in range(c):
+            sz = self.arr[:, :, i].itemsize
+            strides = sz*np.array([w*8,8,w,1])
+
+            blocks = np.lib.stride_tricks.as_strided(self.arr[:, :, i].copy(),\
+                                            shape=shape,\
+                                            subok=True,\
+                                            strides=strides,\
+                                            writeable = False)
+            strided[:, :, :, :, i] = blocks
+
+        self.arr = strided
+
     @fluent
-    def toClassicView(self):
-        self.arr = np.stack([self.arr[:,:,:,:,i].reshape((self.arr.shape[0]*self.arr.shape[2], self.arr.shape[1]*self.arr.shape[3])) for i in range(self.arr.shape[-1])], axis = -1)
+    def toStandardView(self):
+        self.arr = np.stack([self.arr[:,:,:,:,i].swapaxes(1,2).reshape(self.arr.shape[0]*8, self.arr.shape[1]*8) for i in range(self.arr.shape[-1])], axis = -1)
 
     def output(self):
         return self.arr
