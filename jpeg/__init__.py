@@ -66,18 +66,26 @@ class JPEG():
     
     @fluent
     def RGB2YCbCr(self, rounded = True):
-        self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
-                              np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
-                              np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
+        M_RGB2YCbCr = np.array([[0.299, 0.587, 0.144],\
+                                [-0.169, -0.331, 0.500],\
+                                [0.500, -0.419, -0.081]])
+
+        ycbcr = self.arr.astype(np.float32)
+        self.arr = ycbcr.dot(M_RGB2YCbCr.T)
+        self.arr[:, :, [1, 2]] += 128
 
     @fluent
     def YCbCr2RGB(self, rounded = True):
-        self.arr = np.dstack([np.array(0.299*self.arr[:, :, 0]+0.587*self.arr[:, :, 1]+0.114*self.arr[:, :, 2]),\
-                              np.array(-0.1687*self.arr[:, :, 0]-0.3313*self.arr[:, :, 1]+0.5*self.arr[:, :, 2]+128),\
-                              np.array(0.5*self.arr[:, :, 0]-0.4187*self.arr[:, :, 1]-0.0813*self.arr[:, :, 2]+128)])
+        M_YCbCr2RGB = np.array([[1, 0, 1.402],\
+                                [1, -0.344, -0.714],\
+                                [1, 1.772, 0]])
+        rgb = self.arr.astype(np.float32)
+        rgb[:, :, [1, 2]] -= 128
+        self.arr = rgb.dot(M_YCbCr2RGB.T)
+
     @fluent
     def SelectColorChannel(self, index_channel):
-        self.arr = self.arr[:, :, index_channel]
+        self.arr = self.arr[:, :, index_channel].reshape(self.arr.shape[0], self.arr.shape[1], 1)
 
     @fluent
     def DCT(self):
