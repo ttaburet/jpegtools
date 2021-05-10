@@ -71,7 +71,7 @@ class JPEG():
                                 [0.500, -0.419, -0.081]])
 
         ycbcr = self.arr.astype(np.float32)
-        self.arr = ycbcr.dot(M_RGB2YCbCr.T)
+        self.arr = ycbcr@(M_RGB2YCbCr.T)
         self.arr[:, :, [1, 2]] += 128
 
     @fluent
@@ -81,7 +81,7 @@ class JPEG():
                                 [1, 1.772, 0]])
         rgb = self.arr.astype(np.float32)
         rgb[:, :, [1, 2]] -= 128
-        self.arr = rgb.dot(M_YCbCr2RGB.T)
+        self.arr = rgb@(M_YCbCr2RGB.T)
 
     @fluent
     def SelectColorChannel(self, index_channel):
@@ -114,13 +114,13 @@ class JPEG():
     def Z_Ordering(self):
         ravel = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 64))
         ravelBack = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 8, 8))
-        self.arr = np.stack([ ravelBack(np.dot(ravel(self.arr[:,:,:,:, i]), M_P)) for i in range(self.arr.shape[-1])], axis = -1)
+        self.arr = np.stack([ ravelBack(ravel(self.arr[:,:,:,:, i])@M_P) for i in range(self.arr.shape[-1])], axis = -1)
                 
     @fluent
     def N_Ordering(self):
         ravel = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 64))
         ravelBack = lambda arr : arr.reshape((arr.shape[0], arr.shape[1], 8, 8))
-        self.arr = np.stack([ ravelBack(np.dot(ravel(self.arr[:,:,:,:, i]), M_P.T)) for i in range(self.arr.shape[-1])], axis = -1)    
+        self.arr = np.stack([ ravelBack(ravel(self.arr[:,:,:,:, i])@M_P.T) for i in range(self.arr.shape[-1])], axis = -1)    
     
     @fluent
     def toBlocksView(self):
